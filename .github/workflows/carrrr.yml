@@ -1,0 +1,48 @@
+name: Cargo-General
+permissions: { }
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.lock'
+      - '**/*.rs'   # 添加 Rust 文件触发条件
+      - 'Cargo.toml' # 添加 Cargo 配置触发
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@34899fc7ba81ca6268d5947a7a16b4649013fea1
+        with:
+          command: check bans licenses sources
+
+  # 新增编译任务
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: cargo-deny  # 确保先通过依赖检查
+    steps:
+      - uses: actions/checkout@v4
+      
+      # 设置 Rust 工具链
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu  # Linux 目标平台
+          profile: minimal
+          
+      # 编译 Release 版本
+      - name: Build Release Binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+        
+      # 可选：上传制品
+      - name: Upload Binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-binary
+          path: target/x86_64-unknown-linux-gnu/release/your_binary_name
